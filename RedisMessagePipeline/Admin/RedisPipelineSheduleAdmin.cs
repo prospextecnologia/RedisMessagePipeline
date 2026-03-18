@@ -4,57 +4,40 @@ using StackExchange.Redis;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace RedisMessagePipeline.Admin
 {
     /// <summary>
     /// Admin functionality to manage operations on the Redis pipeline, such as starting, stopping, and cleaning.
     /// </summary>
-    public class RedisPipelineAdmin : IRedisPipelineAdmin
+    public class RedisPipelineSheduleAdmin : RedisPipelineBaseAdmin
     {
-        private readonly ILogger<RedisPipelineAdmin> logger;
-        private readonly RedisPipelineAdminSettings settings;
-        private readonly IDistributedLockFactory lockFactory;
-        private readonly IDatabase database;
-
-        internal RedisPipelineAdmin(
-            ILogger<RedisPipelineAdmin> logger,
+        internal RedisPipelineSheduleAdmin(
+            ILogger<RedisPipelineSheduleAdmin> logger,
             RedisPipelineAdminSettings settings,
             IDistributedLockFactory lockFactory,
             IDatabase database)
+            : base(logger, settings, lockFactory, database)
         {
-            this.logger = logger;
-            this.settings = settings;
-            this.lockFactory = lockFactory;
-            this.database = database;
+
         }
 
-        /// <summary>
-        /// Pushes a new message to the Redis pipeline.
-        /// </summary>
-        public Task PushAsync(RedisValue redisValue)
+        public override async Task AddSheduleAsync(RedisValue keyValue, DateTime shedule, RedisValue redisValue)
         {
-            logger.LogDebug("Push a new message '{message}' to '{resource}' redis pipeline", redisValue, settings.Resource);
-
-            RedisKey key = RedisPipelineExtensions.MessagesKey(settings.Resource);
-            return database.ListRightPushAsync(key, redisValue);
+            await base.AddSheduleAsync(keyValue, shedule, redisValue);
+            var score = new DateTimeOffset(shedule).ToUnixTimeMilliseconds();
+            RedisKey key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
+            await database.SortedSetAddAsync(key, keyValue, score);
+            key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);
+            await database.StringSetAsync(key, redisValue);
         }
 
-        /// <summary>
-        /// Stops the Redis pipeline.
-        /// </summary>
-        public Task StopAsync()
-        {
-            logger.LogDebug("Redis pipeline '{resource}' has been stopped", settings.Resource);
-
-            RedisKey key = RedisPipelineExtensions.StateKey(settings.Resource);
-            return database.StringSetAsync(key, RedisPipelineExtensions.STATE_STOPPED);
-        }
 
         /// <summary>
         /// Cleans up resources used by the Redis pipeline.
         /// </summary>
-        public async Task CleanAsync(CancellationToken cancellationToken)
+        public override async Task CleanAsync(CancellationToken cancellationToken)
         {
             using (IRedLock locker = await lockFactory.CreateLockAsync(
                 resource: settings.Resource,
@@ -73,8 +56,10 @@ namespace RedisMessagePipeline.Admin
                 {
                     RedisPipelineExtensions.FailureKey(settings.Resource),
                     RedisPipelineExtensions.StateKey(settings.Resource),
-                    RedisPipelineExtensions.MessagesKey(settings.Resource),
+                    RedisPipelineExtensions.MessagesSortKey(settings.Resource),
                 });
+
+                await RemoveByPatternInBatchesAsync($"{RedisPipelineExtensions.MessageKey(settings.Resource)}*");
 
                 logger.LogDebug("Redis pipeline '{resource}' has been cleaned up", settings.Resource);
             }
@@ -83,7 +68,7 @@ namespace RedisMessagePipeline.Admin
         /// <summary>
         /// Resumes operations of the Redis pipeline after a stop.
         /// </summary>
-        public async Task ResumeAsync(int skip, CancellationToken cancellationToken)
+        public override async Task ResumeAsync(int skip, CancellationToken cancellationToken)
         {
             using (IRedLock locker = await lockFactory.CreateLockAsync(
                 resource: settings.Resource,
@@ -106,10 +91,9 @@ namespace RedisMessagePipeline.Admin
                 }
 
                 ITransaction transaction = database.CreateTransaction();
-                RedisKey messagesKey = RedisPipelineExtensions.MessagesKey(settings.Resource);
                 RedisKey stateKey = RedisPipelineExtensions.StateKey(settings.Resource);
                 Task[] transactionTasks = new Task[] {
-                    transaction.ListLeftPopAsync(messagesKey, count: skip),
+                    skip > 0 ?  RemoveSkip(transaction, skip) : Task.CompletedTask,
                     transaction.StringSetAsync(stateKey, 0)
                 };
                 await transaction.ExecuteAsync();
@@ -118,5 +102,23 @@ namespace RedisMessagePipeline.Admin
                 logger.LogDebug("Redis pipeline '{resource}' has been resumed", settings.Resource);
             }
         }
+
+        private async Task RemoveSkip(ITransaction transaction, int skip)
+        {
+            RedisKey messagesKey = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
+            RedisValue[] values = await transaction.SortedSetRangeByScoreAsync(messagesKey, stop: 0, order: Order.Ascending, take: skip);
+            if (values == null || values.Length <= 0)
+            {
+                return;
+            }
+
+            foreach (RedisValue value in values)
+            {
+                RedisValue message = await database.SortedSetRemoveAsync(RedisPipelineExtensions.MessagesSortKey(settings.Resource), value.ToString());
+                await transaction.KeyDeleteAsync(RedisPipelineExtensions.MessageKey(settings.Resource, value.ToString()));
+            }
+
+        }
+
     }
 }
