@@ -7,7 +7,7 @@ using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
 using StackExchange.Redis;
 
-ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("redis.hml.prospexti.com.br:6379,password=Zerbeto18, abortConnect=false");
+ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("");
 RedLockMultiplexer lockMultiplexer = new RedLockMultiplexer(redis);
 IDatabase db = redis.GetDatabase();
 
