@@ -7,7 +7,7 @@ namespace RedisMessagePipeline.Factory
     {
         QUEUE = 0,
         QUEUE_SCHEDULE = 1
-    }    
+    }
 
     public interface IRedisPipelineFactory
     {

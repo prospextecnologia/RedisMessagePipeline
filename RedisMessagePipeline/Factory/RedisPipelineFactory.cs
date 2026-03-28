@@ -3,7 +3,6 @@ using RedisMessagePipeline.Admin;
 using RedisMessagePipeline.Consumer;
 using RedLockNet;
 using StackExchange.Redis;
-using System.Runtime.InteropServices;
 
 namespace RedisMessagePipeline.Factory
 {
@@ -50,11 +49,11 @@ namespace RedisMessagePipeline.Factory
                     return new RedisPipelineQueueAdmin(loggerFactory.CreateLogger<RedisPipelineQueueAdmin>(), settings, lockFactory, database);
             }
 
-            
+
         }
 
 
-        
+
 
     }
 }

@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using RedLockNet;
 using StackExchange.Redis;
-using System;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,7 +19,7 @@ namespace RedisMessagePipeline.Consumer
             IDatabase database)
             : base(logger, handler, settings, lockFactory, database)
         {
-            
+
         }
 
         /// <summary>

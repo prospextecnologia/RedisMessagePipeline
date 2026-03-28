@@ -17,22 +17,21 @@ namespace RedisMessagePipeline.Admin
             RedisPipelineAdminSettings settings,
             IDistributedLockFactory lockFactory,
             IDatabase database)
-            :base(logger, settings, lockFactory, database)
+            : base(logger, settings, lockFactory, database)
         {
-            
+
         }
 
         /// <summary>
         /// Pushes a new message to the Redis pipeline.
         /// </summary>
-        public override Task PushQueueAsync(RedisValue redisValue)
+        public override async Task PushQueueAsync(RedisValue redisValue)
         {
-            base.PushQueueAsync(redisValue);
-
+            await base.PushQueueAsync(redisValue);
             RedisKey key = RedisPipelineExtensions.MessagesListKey(settings.Resource);
-            return database.ListRightPushAsync(key, redisValue);
+            await database.ListRightPushAsync(key, redisValue);
         }
-                
+
         /// <summary>
         /// Cleans up resources used by the Redis pipeline.
         /// </summary>

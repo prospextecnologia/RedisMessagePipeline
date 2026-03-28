@@ -54,7 +54,7 @@ namespace RedisMessagePipeline.Consumer
         /// Polls for new messages, processes them, and handles any resulting state changes.
         /// </summary>
         protected abstract Task<bool> PollAsync(CancellationToken cancellationToken);
-        
+
 
         /// <summary>
         /// Attempts to process a single message and handle its result.

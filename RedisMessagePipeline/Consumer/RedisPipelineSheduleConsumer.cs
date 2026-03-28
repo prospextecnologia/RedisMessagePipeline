@@ -2,8 +2,6 @@
 using RedLockNet;
 using StackExchange.Redis;
 using System;
-using System.Drawing;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,9 +18,9 @@ namespace RedisMessagePipeline.Consumer
             RedisPipelineConsumerSettings settings,
             IDistributedLockFactory lockFactory,
             IDatabase database)
-            :base(logger, handler, settings, lockFactory, database)
+            : base(logger, handler, settings, lockFactory, database)
         {
-            
+
         }
 
         /// <summary>
@@ -61,7 +59,7 @@ namespace RedisMessagePipeline.Consumer
                     return false;
                 }
 
-                string value = values[0].ToString(); 
+                string value = values[0].ToString();
 
                 // Reserva simples: remove da fila
                 RedisValue message = await database.SortedSetRemoveAsync(RedisPipelineExtensions.MessagesSortKey(settings.Resource), value);
@@ -73,7 +71,7 @@ namespace RedisMessagePipeline.Consumer
                 message = await database.StringGetAsync(RedisPipelineExtensions.MessageKey(settings.Resource, value));
                 if (message.IsNull)
                 {
-                    return false; 
+                    return false;
                 }
 
                 bool success = await HandleMessageAsync(message, cancellationToken);
@@ -84,11 +82,11 @@ namespace RedisMessagePipeline.Consumer
                 }
                 //await HandleFailureAsync(message, state, value);
                 return false;
-                
+
             }
         }
 
-        
+
         /// <summary>
         /// Handles successful message processing by resetting the pipeline state and clearing failures.
         /// </summary>
@@ -97,7 +95,7 @@ namespace RedisMessagePipeline.Consumer
             ITransaction transaction = database.CreateTransaction();
             Task[] transactionTasks = new Task[] {
                 transaction.StringSetAsync(RedisPipelineExtensions.StateKey(settings.Resource), 0),
-                transaction.KeyDeleteAsync(RedisPipelineExtensions.FailureKey(settings.Resource)), 
+                transaction.KeyDeleteAsync(RedisPipelineExtensions.FailureKey(settings.Resource)),
                 transaction.KeyDeleteAsync(RedisPipelineExtensions.MessageKey(settings.Resource, value))
             };
             await transaction.ExecuteAsync();
