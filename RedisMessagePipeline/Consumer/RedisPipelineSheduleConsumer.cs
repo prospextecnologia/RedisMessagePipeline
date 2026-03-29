@@ -28,47 +28,12 @@ namespace RedisMessagePipeline.Consumer
         /// </summary>
         protected override async Task<bool> PollAsync(CancellationToken cancellationToken)
         {
-            using (IRedLock locker = await lockFactory.CreateLockAsync(
-                resource: settings.Resource,
-                expiryTime: settings.LockSettings.ExpiryTime,
-                waitTime: settings.LockSettings.WaitTime,
-                retryTime: settings.LockSettings.RetryTime,
-                cancellationToken))
+            try
             {
-                if (!locker.IsAcquired)
-                {
-                    return false;
-                }
+                //realiza a reserva do item para a fila exclusiva
+                await TryDequeueAndReserveAsync(cancellationToken);
 
-                RedisValue state = await database.StringGetAsync(RedisPipelineExtensions.StateKey(settings.Resource));
-                if (RedisPipelineExtensions.IsStopped(state))
-                {
-                    return false;
-                }
-
-                var stop = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                RedisValue[] values = await database.SortedSetRangeByScoreAsync(
-                    RedisPipelineExtensions.MessagesSortKey(settings.Resource),
-                    stop: stop,
-                    order: Order.Ascending,
-                    take: 1
-                );
-
-                if (values == null || values.Length <= 0 || values[0].IsNull)
-                {
-                    return false;
-                }
-
-                string value = values[0].ToString();
-
-                // Reserva simples: remove da fila
-                RedisValue message = await database.SortedSetRemoveAsync(RedisPipelineExtensions.MessagesSortKey(settings.Resource), value);
-                if (message.IsNull)
-                {
-                    return false; //item já foi removido
-                }
-
-                message = await database.StringGetAsync(RedisPipelineExtensions.MessageKey(settings.Resource, value));
+                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessageKey(settings.Reserved));
                 if (message.IsNull)
                 {
                     return false;
@@ -77,12 +42,92 @@ namespace RedisMessagePipeline.Consumer
                 bool success = await HandleMessageAsync(message, cancellationToken);
                 if (success)
                 {
-                    await HandleSuccessAsync(value);
+                    await HandleSuccessAsync();
                     return true;
                 }
-                //await HandleFailureAsync(message, state, value);
                 return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
 
+
+        private async Task<bool> TryDequeueAndReserveAsync(CancellationToken cancellationToken)
+        {
+            using (IRedLock locker = await lockFactory.CreateLockAsync(
+                resource: settings.Resource,
+                expiryTime: settings.LockSettings.ExpiryTime,
+                waitTime: settings.LockSettings.WaitTime,
+                retryTime: settings.LockSettings.RetryTime,
+                cancellationToken))
+            {
+
+                if (!locker.IsAcquired)
+                {
+                    return false;
+                }
+
+                RedisValue state = await database.StringGetAsync(
+                    RedisPipelineExtensions.StateKey(settings.Resource));
+
+                if (RedisPipelineExtensions.IsStopped(state))
+                {
+                    return false;
+                }
+
+
+                //verifica se este algum item reservado na fila de processamento. 
+                long count = await database.ListLengthAsync(
+                    RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+                if (count > 0)
+                {
+                    //existe item na fila de reserva, ativa processamento
+                    return true;
+                }
+
+                var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                RedisValue[] values = await database.SortedSetRangeByScoreAsync(
+                    RedisPipelineExtensions.MessagesSortKey(settings.Resource),
+                    stop: now,
+                    order: Order.Ascending,
+                    take: 1);
+
+                if (values == null || values.Length == 0 || values[0].IsNull)
+                {
+                    return false;
+                }
+
+                string id = values[0].ToString();
+                bool removed = await database.SortedSetRemoveAsync(
+                    RedisPipelineExtensions.MessagesSortKey(settings.Resource),
+                    id);
+
+                if (!removed)
+                {
+                    return false;
+                }
+
+                RedisValue message = await database.StringGetAsync(
+                    RedisPipelineExtensions.MessageKey(settings.Resource, id));
+
+                if (message.IsNull)
+                {
+                    return false;
+                }
+
+                //envia para a file de processamento
+                long result = await database.ListRightPushAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved), message);
+                if (result <= 0)
+                {
+                    return false;
+                }
+                
+                await database.KeyDeleteAsync(RedisPipelineExtensions.MessageKey(settings.Resource, id));
+
+                return true;
             }
         }
 
@@ -90,18 +135,18 @@ namespace RedisMessagePipeline.Consumer
         /// <summary>
         /// Handles successful message processing by resetting the pipeline state and clearing failures.
         /// </summary>
-        private async Task HandleSuccessAsync(RedisValue value)
+        private async Task HandleSuccessAsync()
         {
             ITransaction transaction = database.CreateTransaction();
             Task[] transactionTasks = new Task[] {
                 transaction.StringSetAsync(RedisPipelineExtensions.StateKey(settings.Resource), 0),
-                transaction.KeyDeleteAsync(RedisPipelineExtensions.FailureKey(settings.Resource)),
-                transaction.KeyDeleteAsync(RedisPipelineExtensions.MessageKey(settings.Resource, value))
+                transaction.KeyDeleteAsync(RedisPipelineExtensions.FailureKey(settings.Resource))
             };
             await transaction.ExecuteAsync();
             await Task.WhenAll(transactionTasks);
         }
 
+        /*
         /// <summary>
         /// Handles message processing failures by retrying or stopping the pipeline based on the retry policy.
         /// </summary>
@@ -121,5 +166,6 @@ namespace RedisMessagePipeline.Consumer
             var score = new DateTimeOffset(novaData).ToUnixTimeMilliseconds();
             await database.SortedSetAddAsync(RedisPipelineExtensions.MessagesSortKey(settings.Resource), value, score);
         }
+        */
     }
 }

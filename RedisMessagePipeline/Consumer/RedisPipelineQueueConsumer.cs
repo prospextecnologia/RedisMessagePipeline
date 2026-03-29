@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using RedLockNet;
 using StackExchange.Redis;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,6 +28,33 @@ namespace RedisMessagePipeline.Consumer
         /// </summary>
         protected override async Task<bool> PollAsync(CancellationToken cancellationToken)
         {
+            try
+            {
+                //realiza a reserva do item para a fila exclusiva
+                await TryDequeueAndReserveAsync(cancellationToken);
+
+                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+                if (message.IsNull)
+                {
+                    return false;
+                }
+
+                bool success = await HandleMessageAsync(message, cancellationToken);
+                if (success)
+                {
+                    await HandleSuccessAsync();
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private async Task<bool> TryDequeueAndReserveAsync(CancellationToken cancellationToken)
+        {
             using (IRedLock locker = await lockFactory.CreateLockAsync(
                 resource: settings.Resource,
                 expiryTime: settings.LockSettings.ExpiryTime,
@@ -45,24 +73,27 @@ namespace RedisMessagePipeline.Consumer
                     return false;
                 }
 
-                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Resource));
-                if (message.IsNull)
-                {
-                    return false;
-                }
 
-                bool success = await HandleMessageAsync(message, cancellationToken);
-
-                if (success)
+                //verifica se este algum item reservado na fila de processamento. 
+                long count = await database.ListLengthAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+                if (count > 0)
                 {
-                    await HandleSuccessAsync();
+                    //existe item na fila de reserva, ativa processamento
                     return true;
                 }
 
-                //await HandleFailureAsync(message, state);
-                return false;
+                //envia objeto para a fila de reserva, para processamento
+                RedisValue item = await database.ListMoveAsync(RedisPipelineExtensions.MessagesListKey(settings.Resource), RedisPipelineExtensions.MessagesListKey(settings.Reserved), ListSide.Left, ListSide.Right);
+                if (item.IsNull)
+                {
+                    // fila principal vazia
+                    return false;
+                }
+
+                return true;
             }
         }
+
 
         /// <summary>
         /// Handles successful message processing by resetting the pipeline state and clearing failures.

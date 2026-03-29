@@ -16,6 +16,7 @@ namespace RedisMessagePipeline.Consumer
             Resource = resource;
         }
         public string Resource { get; set; }
+        public string Reserved { get; set; }
         public int MaxRetries { get; set; } = int.MaxValue;
         public EnPipelineType Type { get; set; } = EnPipelineType.QUEUE;
 
