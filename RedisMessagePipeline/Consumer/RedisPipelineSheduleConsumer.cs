@@ -33,7 +33,7 @@ namespace RedisMessagePipeline.Consumer
                 //realiza a reserva do item para a fila exclusiva
                 await TryDequeueAndReserveAsync(cancellationToken);
 
-                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessageKey(settings.Reserved));
+                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
                 if (message.IsNull)
                 {
                     return false;
