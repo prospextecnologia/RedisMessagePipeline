@@ -30,7 +30,7 @@ namespace RedisMessagePipeline.Factory
             switch (settings.Type)
             {
                 case EnPipelineType.QUEUE_SCHEDULE:
-                    return new RedisPipelineSheduleConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
+                    return new RedisPipelineScheduleConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
                 default:
                     return new RedisPipelineQueueConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
             }
@@ -44,7 +44,7 @@ namespace RedisMessagePipeline.Factory
             switch (settings.Type)
             {
                 case EnPipelineType.QUEUE_SCHEDULE:
-                    return new RedisPipelineSheduleAdmin(loggerFactory.CreateLogger<RedisPipelineSheduleAdmin>(), settings, lockFactory, database);
+                    return new RedisPipelineScheduleAdmin(loggerFactory.CreateLogger<RedisPipelineScheduleAdmin>(), settings, lockFactory, database);
                 default:
                     return new RedisPipelineQueueAdmin(loggerFactory.CreateLogger<RedisPipelineQueueAdmin>(), settings, lockFactory, database);
             }

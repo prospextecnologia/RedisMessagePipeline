@@ -10,10 +10,10 @@ namespace RedisMessagePipeline.Admin
     /// <summary>
     /// Admin functionality to manage operations on the Redis pipeline, such as starting, stopping, and cleaning.
     /// </summary>
-    public class RedisPipelineSheduleAdmin : RedisPipelineBaseAdmin
+    public class RedisPipelineScheduleAdmin : RedisPipelineBaseAdmin
     {
-        internal RedisPipelineSheduleAdmin(
-            ILogger<RedisPipelineSheduleAdmin> logger,
+        internal RedisPipelineScheduleAdmin(
+            ILogger<RedisPipelineScheduleAdmin> logger,
             RedisPipelineAdminSettings settings,
             IDistributedLockFactory lockFactory,
             IDatabase database)
@@ -22,10 +22,10 @@ namespace RedisMessagePipeline.Admin
 
         }
 
-        public override async Task AddSheduleAsync(RedisValue keyValue, DateTime shedule, RedisValue redisValue)
+        public override async Task AddScheduleAsync(RedisValue keyValue, DateTime schedule, RedisValue redisValue)
         {
-            await base.AddSheduleAsync(keyValue, shedule, redisValue);
-            var score = new DateTimeOffset(shedule).ToUnixTimeMilliseconds();
+            await base.AddScheduleAsync(keyValue, schedule, redisValue);
+            var score = new DateTimeOffset(schedule).ToUnixTimeMilliseconds();
             RedisKey key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
             await database.SortedSetAddAsync(key, keyValue, score);
             key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);

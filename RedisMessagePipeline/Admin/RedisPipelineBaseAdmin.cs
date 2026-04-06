@@ -67,7 +67,7 @@ namespace RedisMessagePipeline.Admin
         /// </summary>
         public abstract Task ResumeAsync(int skip, CancellationToken cancellationToken);
 
-        public virtual Task AddSheduleAsync(RedisValue keyValue, DateTime shedule, RedisValue redisValue)
+        public virtual Task AddScheduleAsync(RedisValue keyValue, DateTime schedule, RedisValue redisValue)
         {
             if (this.settings.Type != Factory.EnPipelineType.QUEUE_SCHEDULE)
             {

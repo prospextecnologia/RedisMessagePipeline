@@ -10,9 +10,9 @@ namespace RedisMessagePipeline.Consumer
     /// <summary>
     /// Consumes messages from a Redis pipeline and processes them according to the specified handler logic.
     /// </summary>
-    public class RedisPipelineSheduleConsumer : RedisBasePipelineConsumer
+    public class RedisPipelineScheduleConsumer : RedisBasePipelineConsumer
     {
-        internal RedisPipelineSheduleConsumer(
+        internal RedisPipelineScheduleConsumer(
             ILogger<RedisPipelineQueueConsumer> logger,
             IRedisPipelineHandler handler,
             RedisPipelineConsumerSettings settings,
