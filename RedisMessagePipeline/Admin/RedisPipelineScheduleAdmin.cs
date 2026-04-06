@@ -23,21 +23,10 @@ namespace RedisMessagePipeline.Admin
 
         }
 
-        public override async Task AddScheduleAsync(RedisValue keyValue, DateTime schedule, RedisValue redisValue)
+        public override async Task AddScheduleAsync(RedisValue keyValue, DateTimeOffset schedule, RedisValue redisValue)
         {
             await base.AddScheduleAsync(keyValue, schedule, redisValue);
-
-            logger.LogError($"schedule O: {schedule:O}");
-            logger.LogError($"schedule: {schedule:yyyy-MM-dd HH:mm:ss}");
-            logger.LogError($"schedule kind: {schedule.Kind}");
-            logger.LogError($"schedule utc: {schedule.ToUniversalTime():yyyy-MM-dd HH:mm:ss}");
-            logger.LogError($"now local: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            logger.LogError($"now utc: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
-
-            
-            DateTime scheduleUtc = schedule.ToUniversalTime();
-            double score = new DateTimeOffset(scheduleUtc).ToUnixTimeMilliseconds();
-
+            double score = schedule.ToUnixTimeMilliseconds();
             RedisKey key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
             await database.SortedSetAddAsync(key, keyValue, score);
             key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);
