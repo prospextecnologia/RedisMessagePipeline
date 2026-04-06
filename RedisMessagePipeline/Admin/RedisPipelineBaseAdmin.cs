@@ -33,7 +33,7 @@ namespace RedisMessagePipeline.Admin
         /// <summary>
         /// Pushes a new message to the Redis pipeline.
         /// </summary>
-        public virtual Task PushQueueAsync(RedisValue redisValue)
+        public virtual Task<long> PushQueueAsync(RedisValue redisValue)
         {
             if (this.settings.Type != Factory.EnPipelineType.QUEUE)
             {
@@ -42,7 +42,7 @@ namespace RedisMessagePipeline.Admin
 
             logger.LogDebug("Push a new message '{message}' to '{resource}' redis pipeline", redisValue, settings.Resource);
 
-            return Task.CompletedTask;
+            return Task.FromResult(-1L);
 
         }
 

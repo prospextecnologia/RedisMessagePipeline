@@ -25,11 +25,11 @@ namespace RedisMessagePipeline.Admin
         /// <summary>
         /// Pushes a new message to the Redis pipeline.
         /// </summary>
-        public override async Task PushQueueAsync(RedisValue redisValue)
+        public override async Task<long> PushQueueAsync(RedisValue redisValue)
         {
             await base.PushQueueAsync(redisValue);
             RedisKey key = RedisPipelineExtensions.MessagesListKey(settings.Resource);
-            await database.ListRightPushAsync(key, redisValue);
+            return await database.ListRightPushAsync(key, redisValue);
         }
 
         /// <summary>

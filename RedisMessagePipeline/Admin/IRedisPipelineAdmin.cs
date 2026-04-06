@@ -7,7 +7,7 @@ namespace RedisMessagePipeline.Admin
 {
     public interface IRedisPipelineAdmin
     {
-        Task PushQueueAsync(RedisValue redisValue);
+        Task<long> PushQueueAsync(RedisValue redisValue);
         Task AddSheduleAsync(RedisValue keyValue, DateTime shedule, RedisValue redisValue);
         Task StopAsync();
         Task CleanAsync(CancellationToken cancellationToken);
