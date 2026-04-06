@@ -87,7 +87,7 @@ namespace RedisMessagePipeline.Consumer
                     return true;
                 }
 
-                var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                double now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 RedisValue[] values = await database.SortedSetRangeByScoreAsync(
                     RedisPipelineExtensions.MessagesSortKey(settings.Resource),

@@ -25,7 +25,10 @@ namespace RedisMessagePipeline.Admin
         public override async Task AddScheduleAsync(RedisValue keyValue, DateTime schedule, RedisValue redisValue)
         {
             await base.AddScheduleAsync(keyValue, schedule, redisValue);
-            var score = new DateTimeOffset(schedule).ToUnixTimeMilliseconds();
+
+            DateTime scheduleUtc = schedule.ToUniversalTime();
+            double score = new DateTimeOffset(scheduleUtc).ToUnixTimeMilliseconds();
+
             RedisKey key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
             await database.SortedSetAddAsync(key, keyValue, score);
             key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);
