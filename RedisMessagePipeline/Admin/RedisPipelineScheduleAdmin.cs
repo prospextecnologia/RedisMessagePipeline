@@ -2,6 +2,7 @@
 using RedLockNet;
 using StackExchange.Redis;
 using System;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,6 +27,14 @@ namespace RedisMessagePipeline.Admin
         {
             await base.AddScheduleAsync(keyValue, schedule, redisValue);
 
+            logger.LogError($"schedule O: {schedule:O}");
+            logger.LogError($"schedule: {schedule:yyyy-MM-dd HH:mm:ss}");
+            logger.LogError($"schedule kind: {schedule.Kind}");
+            logger.LogError($"schedule utc: {schedule.ToUniversalTime():yyyy-MM-dd HH:mm:ss}");
+            logger.LogError($"now local: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            logger.LogError($"now utc: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
+
+            
             DateTime scheduleUtc = schedule.ToUniversalTime();
             double score = new DateTimeOffset(scheduleUtc).ToUnixTimeMilliseconds();
 

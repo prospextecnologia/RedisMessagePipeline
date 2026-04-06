@@ -26,7 +26,7 @@ await admin.StopAsync();
 // Push messages
 for (int i = 0; i < 10; i++)
 {
-    await admin.AddSheduleAsync($"{i}", DateTime.Now.AddSeconds(i * 10), $"message:{i}");
+    await admin.AddScheduleAsync($"{i}", DateTime.Now.AddSeconds(i * 10), $"message:{i}");
 }
 
 // Resume the pipeline, skipping problematic messages if necessary
