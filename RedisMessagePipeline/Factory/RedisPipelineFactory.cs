@@ -27,7 +27,13 @@ namespace RedisMessagePipeline.Factory
         /// </summary>
         public IRedisPipelineConsumer CreateConsumer(IRedisPipelineHandler handler, RedisPipelineConsumerSettings settings)
         {
-            return new RedisPipelineConsumer(loggerFactory.CreateLogger<RedisPipelineConsumer>(), handler, settings, lockFactory, database);
+            switch (settings.Type)
+            {
+                case EnPipelineType.QUEUE_SCHEDULE:
+                    return new RedisPipelineScheduleConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
+                default:
+                    return new RedisPipelineQueueConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
+            }
         }
 
         /// <summary>
@@ -35,7 +41,19 @@ namespace RedisMessagePipeline.Factory
         /// </summary>
         public IRedisPipelineAdmin CreateAdmin(RedisPipelineAdminSettings settings)
         {
-            return new RedisPipelineAdmin(loggerFactory.CreateLogger<RedisPipelineAdmin>(), settings, lockFactory, database);
+            switch (settings.Type)
+            {
+                case EnPipelineType.QUEUE_SCHEDULE:
+                    return new RedisPipelineScheduleAdmin(loggerFactory.CreateLogger<RedisPipelineScheduleAdmin>(), settings, lockFactory, database);
+                default:
+                    return new RedisPipelineQueueAdmin(loggerFactory.CreateLogger<RedisPipelineQueueAdmin>(), settings, lockFactory, database);
+            }
+
+
         }
+
+
+
+
     }
 }

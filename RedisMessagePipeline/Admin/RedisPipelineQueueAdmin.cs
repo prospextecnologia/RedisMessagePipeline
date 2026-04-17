@@ -10,51 +10,32 @@ namespace RedisMessagePipeline.Admin
     /// <summary>
     /// Admin functionality to manage operations on the Redis pipeline, such as starting, stopping, and cleaning.
     /// </summary>
-    public class RedisPipelineAdmin : IRedisPipelineAdmin
+    public class RedisPipelineQueueAdmin : RedisPipelineBaseAdmin
     {
-        private readonly ILogger<RedisPipelineAdmin> logger;
-        private readonly RedisPipelineAdminSettings settings;
-        private readonly IDistributedLockFactory lockFactory;
-        private readonly IDatabase database;
-
-        internal RedisPipelineAdmin(
-            ILogger<RedisPipelineAdmin> logger,
+        internal RedisPipelineQueueAdmin(
+            ILogger<RedisPipelineQueueAdmin> logger,
             RedisPipelineAdminSettings settings,
             IDistributedLockFactory lockFactory,
             IDatabase database)
+            : base(logger, settings, lockFactory, database)
         {
-            this.logger = logger;
-            this.settings = settings;
-            this.lockFactory = lockFactory;
-            this.database = database;
+
         }
 
         /// <summary>
         /// Pushes a new message to the Redis pipeline.
         /// </summary>
-        public Task PushAsync(RedisValue redisValue)
+        public override async Task<long> PushQueueAsync(RedisValue redisValue)
         {
-            logger.LogDebug("Push a new message '{message}' to '{resource}' redis pipeline", redisValue, settings.Resource);
-
-            RedisKey key = RedisPipelineExtensions.MessagesKey(settings.Resource);
-            return database.ListRightPushAsync(key, redisValue);
-        }
-
-        /// <summary>
-        /// Stops the Redis pipeline.
-        /// </summary>
-        public Task StopAsync()
-        {
-            logger.LogDebug("Redis pipeline '{resource}' has been stopped", settings.Resource);
-
-            RedisKey key = RedisPipelineExtensions.StateKey(settings.Resource);
-            return database.StringSetAsync(key, RedisPipelineExtensions.STATE_STOPPED);
+            await base.PushQueueAsync(redisValue);
+            RedisKey key = RedisPipelineExtensions.MessagesListKey(settings.Resource);
+            return await database.ListRightPushAsync(key, redisValue);
         }
 
         /// <summary>
         /// Cleans up resources used by the Redis pipeline.
         /// </summary>
-        public async Task CleanAsync(CancellationToken cancellationToken)
+        public override async Task CleanAsync(CancellationToken cancellationToken)
         {
             using (IRedLock locker = await lockFactory.CreateLockAsync(
                 resource: settings.Resource,
@@ -73,7 +54,7 @@ namespace RedisMessagePipeline.Admin
                 {
                     RedisPipelineExtensions.FailureKey(settings.Resource),
                     RedisPipelineExtensions.StateKey(settings.Resource),
-                    RedisPipelineExtensions.MessagesKey(settings.Resource),
+                    RedisPipelineExtensions.MessagesListKey(settings.Resource),
                 });
 
                 logger.LogDebug("Redis pipeline '{resource}' has been cleaned up", settings.Resource);
@@ -83,7 +64,7 @@ namespace RedisMessagePipeline.Admin
         /// <summary>
         /// Resumes operations of the Redis pipeline after a stop.
         /// </summary>
-        public async Task ResumeAsync(int skip, CancellationToken cancellationToken)
+        public override async Task ResumeAsync(int skip, CancellationToken cancellationToken)
         {
             using (IRedLock locker = await lockFactory.CreateLockAsync(
                 resource: settings.Resource,
@@ -106,10 +87,10 @@ namespace RedisMessagePipeline.Admin
                 }
 
                 ITransaction transaction = database.CreateTransaction();
-                RedisKey messagesKey = RedisPipelineExtensions.MessagesKey(settings.Resource);
+                RedisKey messagesKey = RedisPipelineExtensions.MessagesListKey(settings.Resource);
                 RedisKey stateKey = RedisPipelineExtensions.StateKey(settings.Resource);
                 Task[] transactionTasks = new Task[] {
-                    transaction.ListLeftPopAsync(messagesKey, count: skip),
+                    skip > 0 ? transaction.ListLeftPopAsync(messagesKey, count: skip) : Task.CompletedTask,
                     transaction.StringSetAsync(stateKey, 0)
                 };
                 await transaction.ExecuteAsync();

@@ -1,7 +1,11 @@
-﻿using System;
+﻿using RedisMessagePipeline.Factory;
+using System;
 
 namespace RedisMessagePipeline.Consumer
 {
+
+
+
     /// <summary>
     /// Configuration settings for RedisPipelineConsumer, including resource identifiers and retry logic.
     /// </summary>
@@ -12,7 +16,9 @@ namespace RedisMessagePipeline.Consumer
             Resource = resource;
         }
         public string Resource { get; set; }
+        public string Reserved { get; set; }
         public int MaxRetries { get; set; } = int.MaxValue;
+        public EnPipelineType Type { get; set; } = EnPipelineType.QUEUE;
 
         /// <summary>
         /// Interval between unsuccessful handling or empty fetching attempts.

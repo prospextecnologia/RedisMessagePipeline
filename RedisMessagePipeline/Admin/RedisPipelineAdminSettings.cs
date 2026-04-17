@@ -1,4 +1,6 @@
-﻿namespace RedisMessagePipeline.Admin
+﻿using RedisMessagePipeline.Factory;
+
+namespace RedisMessagePipeline.Admin
 {
     /// <summary>
     /// Settings for RedisPipelineAdmin to manage Redis pipelines.
@@ -10,6 +12,7 @@
             Resource = resource;
         }
         public string Resource { get; set; }
+        public EnPipelineType Type { get; set; } = EnPipelineType.QUEUE;
         public RedisPipelineLockSettings LockSettings { get; set; } = new RedisPipelineLockSettings();
     }
 }
