@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using RedisMessagePipeline.Consumer;
+using StackExchange.Redis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,5 +17,6 @@ namespace RedisMessagePipeline
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>A task that represents the asynchronous operation, containing a boolean result.</returns>
         Task<bool> HandleAsync(RedisValue redisValue, CancellationToken cancellationToken);
+        Task StatusAsync(RedisConsumerStatus status, CancellationToken cancellationToken);
     }
 }
