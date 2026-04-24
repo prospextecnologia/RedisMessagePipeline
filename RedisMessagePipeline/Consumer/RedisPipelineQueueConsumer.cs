@@ -28,29 +28,22 @@ namespace RedisMessagePipeline.Consumer
         /// </summary>
         protected override async Task<bool> PollAsync(CancellationToken cancellationToken)
         {
-            try
-            {
-                //realiza a reserva do item para a fila exclusiva
-                await TryDequeueAndReserveAsync(cancellationToken);
+            //realiza a reserva do item para a fila exclusiva
+            await TryDequeueAndReserveAsync(cancellationToken);
 
-                RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
-                if (message.IsNull)
-                {
-                    return false;
-                }
-
-                bool success = await HandleMessageAsync(message, cancellationToken);
-                if (success)
-                {
-                    await HandleSuccessAsync();
-                    return true;
-                }
-                return false;
-            }
-            catch (Exception)
+            RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+            if (message.IsNull)
             {
                 return false;
             }
+
+            bool success = await HandleMessageAsync(message, cancellationToken);
+            if (success)
+            {
+                await HandleSuccessAsync();
+                return true;
+            }
+            return false;
         }
 
         private async Task<bool> TryDequeueAndReserveAsync(CancellationToken cancellationToken)

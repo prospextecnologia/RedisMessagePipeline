@@ -42,7 +42,30 @@ namespace RedisMessagePipeline.Consumer
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                bool success = await PollAsync(cancellationToken);
+                bool success = false;
+                Exception error = null;
+
+                try
+                {
+                    success = await PollAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                    logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
+                }
+
+                if (this.handler != null)
+                {
+                    await this.handler.StatusAsync(new RedisConsumerStatus
+                    {
+                        Resource = settings.Resource,
+                        IsAlive = true,
+                        ProcessedMessage = success,
+                        LastExecutionUtc = DateTime.UtcNow,
+                        LastError = error
+                    }, cancellationToken);
+                }
                 if (!success)
                 {
                     await Task.Delay(settings.PullInterval, cancellationToken);
