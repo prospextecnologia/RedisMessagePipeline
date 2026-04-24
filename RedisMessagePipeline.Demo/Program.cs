@@ -46,4 +46,9 @@ class MyMessageHandler : IRedisPipelineHandler
         await Task.Delay(300, cancellationToken);                
         return success;
     }
+
+    public Task StatusAsync(RedisConsumerStatus status, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

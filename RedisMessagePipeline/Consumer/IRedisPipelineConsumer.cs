@@ -5,8 +5,6 @@ using System.Threading.Tasks;
 namespace RedisMessagePipeline.Consumer
 {
 
-
-    
     public class RedisConsumerStatus
     {
         public string Resource { get; set; }
