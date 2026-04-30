@@ -7,8 +7,8 @@ namespace RedisMessagePipeline
     /// </summary>
     public class RedisPipelineLockSettings
     {
-        public TimeSpan ExpiryTime { get; set; } = TimeSpan.FromSeconds(10);
-        public TimeSpan WaitTime { get; set; } = TimeSpan.FromMilliseconds(500);
-        public TimeSpan RetryTime { get; set; } = TimeSpan.FromMilliseconds(100);
+        public TimeSpan ExpiryTime { get; set; } = TimeSpan.FromSeconds(15);
+        public TimeSpan WaitTime { get; set; } = TimeSpan.FromMilliseconds(5);
+        public TimeSpan RetryTime { get; set; } = TimeSpan.FromMilliseconds(500);
     }
 }

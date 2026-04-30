@@ -31,7 +31,7 @@ namespace RedisMessagePipeline.Consumer
             //realiza a reserva do item para a fila exclusiva
             await TryDequeueAndReserveAsync(cancellationToken);
 
-            RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+            RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved));
             if (message.IsNull)
             {
                 return false;
@@ -73,7 +73,7 @@ namespace RedisMessagePipeline.Consumer
 
                 //verifica se este algum item reservado na fila de processamento. 
                 long count = await database.ListLengthAsync(
-                    RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+                    RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved));
                 if (count > 0)
                 {
                     //existe item na fila de reserva, ativa processamento
@@ -112,7 +112,7 @@ namespace RedisMessagePipeline.Consumer
                 }
 
                 //envia para a file de processamento
-                long result = await database.ListRightPushAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved), message);
+                long result = await database.ListRightPushAsync(RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved), message);
                 if (result <= 0)
                 {
                     return false;

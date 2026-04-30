@@ -31,7 +31,7 @@ namespace RedisMessagePipeline.Consumer
             //realiza a reserva do item para a fila exclusiva
             await TryDequeueAndReserveAsync(cancellationToken);
 
-            RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+            RedisValue message = await database.ListLeftPopAsync(RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved));
             if (message.IsNull)
             {
                 return false;
@@ -68,7 +68,7 @@ namespace RedisMessagePipeline.Consumer
 
 
                 //verifica se este algum item reservado na fila de processamento. 
-                long count = await database.ListLengthAsync(RedisPipelineExtensions.MessagesListKey(settings.Reserved));
+                long count = await database.ListLengthAsync(RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved));
                 if (count > 0)
                 {
                     //existe item na fila de reserva, ativa processamento
@@ -76,7 +76,7 @@ namespace RedisMessagePipeline.Consumer
                 }
 
                 //envia objeto para a fila de reserva, para processamento
-                RedisValue item = await database.ListMoveAsync(RedisPipelineExtensions.MessagesListKey(settings.Resource), RedisPipelineExtensions.MessagesListKey(settings.Reserved), ListSide.Left, ListSide.Right);
+                RedisValue item = await database.ListMoveAsync(RedisPipelineExtensions.MessagesListKey(settings.Resource), RedisPipelineExtensions.MessagesListKeyReserved(settings.Resource, settings.Reserved), ListSide.Left, ListSide.Right);
                 if (item.IsNull)
                 {
                     // fila principal vazia
