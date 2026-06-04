@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using RedisMessagePipeline.Factory;
 using RedLockNet.SERedis;
@@ -17,12 +18,13 @@ namespace RedisMessagePipeline
         /// <returns>The original <see cref="IServiceCollection"/> instance, for chaining further calls.</returns>
         public static IServiceCollection AddRedisPipelineFactory(this IServiceCollection services)
         {
-            return services.AddTransient(sp =>
+            services.TryAddSingleton(sp =>
             {
                 var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
                 IConnectionMultiplexer multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
                 return CreateRedisPipelineFactory(loggerFactory, multiplexer);
             });
+            return services;
         }
 
         /// <summary>
@@ -34,12 +36,21 @@ namespace RedisMessagePipeline
         /// <returns>The original <see cref="IServiceCollection"/> instance, for chaining further calls.</returns>
         public static IServiceCollection AddRedisPipelineFactory(this IServiceCollection services, string redisConenctionString)
         {
-            return services.AddTransient(sp =>
+            services.TryAddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var redisOptions = ConfigurationOptions.Parse(redisConenctionString);
+                redisOptions.ReconnectRetryPolicy = new ExponentialRetry(1000, 10000);
+                return ConnectionMultiplexer.Connect(redisOptions);
+            });
+
+            services.AddSingleton<IRedisPipelineFactory>(sp =>
             {
                 var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-                ConnectionMultiplexer multiplexer = ConnectionMultiplexer.Connect(redisConenctionString);
+                var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
                 return CreateRedisPipelineFactory(loggerFactory, multiplexer);
             });
+
+            return services;
         }
 
 
