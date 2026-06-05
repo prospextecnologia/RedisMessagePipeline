@@ -29,7 +29,9 @@ namespace RedisMessagePipeline.Admin
         {
             await base.PushQueueAsync(redisValue);
             RedisKey key = RedisPipelineExtensions.MessagesListKey(settings.Resource);
-            return await database.ListRightPushAsync(key, redisValue);
+            await database.ListRightPushAsync(key, redisValue);
+            // Publica sempre — consumer Ativar
+            return await database.PublishAsync(RedisChannel.Literal(RedisPipelineExtensions.SignalChannelKey(settings.Resource)), "1");
         }
 
         /// <summary>

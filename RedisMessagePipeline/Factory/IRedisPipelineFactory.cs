@@ -11,7 +11,7 @@ namespace RedisMessagePipeline.Factory
 
     public interface IRedisPipelineFactory
     {
-        IRedisPipelineConsumer CreateConsumer(IRedisPipelineHandler handler, RedisPipelineConsumerSettings settings);
+        IRedisPipelineConsumer CreateConsumer(IRedisPipelineHandler handler, RedisPipelineConsumerSettings settings, string stringConnection);
         IRedisPipelineAdmin CreateAdmin(RedisPipelineAdminSettings settings);
     }
 }

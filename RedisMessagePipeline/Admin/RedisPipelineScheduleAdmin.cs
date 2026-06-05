@@ -26,11 +26,17 @@ namespace RedisMessagePipeline.Admin
         public override async Task AddScheduleAsync(RedisValue keyValue, DateTimeOffset schedule, RedisValue redisValue)
         {
             await base.AddScheduleAsync(keyValue, schedule, redisValue);
+            
             double score = schedule.ToUnixTimeMilliseconds();
-            RedisKey key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
-            await database.SortedSetAddAsync(key, keyValue, score);
-            key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);
+
+            RedisKey key = RedisPipelineExtensions.MessageKey(settings.Resource, keyValue);
             await database.StringSetAsync(key, redisValue);
+
+            key = RedisPipelineExtensions.MessagesSortKey(settings.Resource);
+            await database.SortedSetAddAsync(key, keyValue, score);
+
+            // Publica sempre — consumer recalcula o delay correto
+            await database.PublishAsync(RedisChannel.Literal(RedisPipelineExtensions.SignalChannelKey(settings.Resource)), "1");
         }
 
 

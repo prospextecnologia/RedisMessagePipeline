@@ -2,6 +2,7 @@
 using RedLockNet;
 using StackExchange.Redis;
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,11 +18,113 @@ namespace RedisMessagePipeline.Consumer
             IRedisPipelineHandler handler,
             RedisPipelineConsumerSettings settings,
             IDistributedLockFactory lockFactory,
-            IDatabase database)
-            : base(logger, handler, settings, lockFactory, database)
+            IDatabase database, 
+            IConnectionMultiplexer multiplexer)
+            : base(logger, handler, settings, lockFactory, database, multiplexer)
         {
 
         }
+
+
+        public override async Task ExecuteAsync(CancellationToken cancellationToken)
+        {
+            logger.LogDebug("RedisPipelineConsumer '{resource}' started (scheduled mode).", settings.Resource);
+
+            var subscriber = this.database.Multiplexer.GetSubscriber();
+            var channel = RedisChannel.Literal(RedisPipelineExtensions.SignalChannelKey(settings.Resource));
+            var signal = new SemaphoreSlim(0, 1);
+
+            await subscriber.SubscribeAsync(channel, (redisChannel, redisValue) =>
+            {
+                if (signal.CurrentCount == 0)
+                    signal.Release();
+            });
+
+            // Verifica reserva pendente de execução anterior
+            signal.Release();
+
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    TimeSpan delay = await GetDelayUntilNextAsync();
+
+                    if (delay > TimeSpan.Zero)
+                    {
+                        await signal.WaitAsync(delay, cancellationToken);
+                        continue;
+                    }
+
+                    bool success = false;
+                    Exception error = null;
+                    try
+                    {
+                        success = await PollAsync(cancellationToken);
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (RedisTimeoutException ex)
+                    {
+                        error = ex;
+                        logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
+                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                        continue;
+                    }
+                    catch (Exception ex)
+                    {
+                        error = ex;
+                        logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                        continue;
+                    }
+
+                    if (handler != null)
+                    {
+                        await handler.StatusAsync(new RedisConsumerStatus
+                        {
+                            Resource = settings.Resource,
+                            IsAlive = error == null,
+                            ProcessedMessage = success,
+                            LastExecutionUtc = DateTime.UtcNow,
+                            LastError = error
+                        }, cancellationToken);
+                    }
+
+                    if (success)
+                        signal.Release();
+                }
+            }
+            finally
+            {
+                await subscriber.UnsubscribeAsync(channel);
+            }
+        }
+
+        private async Task<TimeSpan> GetDelayUntilNextAsync()
+        {
+            double now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            var vencido = await database.SortedSetRangeByScoreAsync(
+                RedisPipelineExtensions.MessagesSortKey(settings.Resource),
+                start: double.NegativeInfinity,
+                stop: now,
+                take: 1,
+                order: Order.Ascending);
+
+            if (vencido != null && vencido.Length > 0)
+                return TimeSpan.Zero;
+
+            var proximo = await database.SortedSetRangeByRankWithScoresAsync(
+                RedisPipelineExtensions.MessagesSortKey(settings.Resource),
+                start: 0, stop: 0, order: Order.Ascending);
+
+            if (proximo == null || proximo.Length == 0)
+                return Timeout.InfiniteTimeSpan;
+
+            double diffMs = proximo[0].Score - now;
+            return TimeSpan.FromMilliseconds(diffMs);
+        }
+
+
 
         /// <summary>
         /// Polls for new messages, processes them, and handles any resulting state changes.

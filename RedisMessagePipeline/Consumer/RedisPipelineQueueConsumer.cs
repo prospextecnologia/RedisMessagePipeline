@@ -17,8 +17,9 @@ namespace RedisMessagePipeline.Consumer
             IRedisPipelineHandler handler,
             RedisPipelineConsumerSettings settings,
             IDistributedLockFactory lockFactory,
-            IDatabase database)
-            : base(logger, handler, settings, lockFactory, database)
+            IDatabase database,
+            IConnectionMultiplexer multiplexer)
+            : base(logger, handler, settings, lockFactory, database, multiplexer)
         {
 
         }

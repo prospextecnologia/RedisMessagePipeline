@@ -1,4 +1,5 @@
 ﻿using StackExchange.Redis;
+using System;
 
 namespace RedisMessagePipeline
 {
@@ -18,5 +19,6 @@ namespace RedisMessagePipeline
         public static RedisKey MessagesSortKey(string resource) => $"{resource}:sortkeys";
         public static RedisKey MessageKey(string resource) => $"{resource}:message:";
         public static RedisKey MessageKey(string resource, string id) => $"{MessageKey(resource)}{id}";
+        public static string SignalChannelKey(string resource) => $"{resource}:signal";
     }
 }

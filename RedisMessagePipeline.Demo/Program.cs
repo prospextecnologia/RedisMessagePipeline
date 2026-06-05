@@ -15,7 +15,7 @@ var loggerFactory = new LoggerFactory();
 RedLockFactory lockFactory = RedLockFactory.Create(new List<RedLockMultiplexer> { lockMultiplexer });
 RedisPipelineFactory factory = new RedisPipelineFactory(loggerFactory, lockFactory, db);
 
-var consumer = factory.CreateConsumer(new MyMessageHandler(), new RedisPipelineConsumerSettings("my-messages") { Type = EnPipelineType.QUEUE_SCHEDULE});
+var consumer = factory.CreateConsumer(new MyMessageHandler(), new RedisPipelineConsumerSettings("my-messages") { Type = EnPipelineType.QUEUE_SCHEDULE}, "");
 var admin = factory.CreateAdmin(new RedisPipelineAdminSettings("my-messages") { Type = EnPipelineType.QUEUE_SCHEDULE });
 
 // ----  Administrate the pipeline  -----

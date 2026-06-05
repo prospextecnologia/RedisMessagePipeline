@@ -11,65 +11,104 @@ namespace RedisMessagePipeline.Consumer
     /// <summary>
     /// Consumes messages from a Redis pipeline and processes them according to the specified handler logic.
     /// </summary>
-    public abstract class RedisBasePipelineConsumer : IRedisPipelineConsumer
+    public abstract class RedisBasePipelineConsumer : IRedisPipelineConsumer, IDisposable
     {
         protected readonly ILogger<RedisPipelineQueueConsumer> logger;
-        private readonly IRedisPipelineHandler handler;
+        protected readonly IRedisPipelineHandler handler;
         protected readonly IDistributedLockFactory lockFactory;
         protected readonly IDatabase database;
         protected readonly RedisPipelineConsumerSettings settings;
+        protected readonly IConnectionMultiplexer multiplexer;
 
         internal RedisBasePipelineConsumer(
             ILogger<RedisPipelineQueueConsumer> logger,
             IRedisPipelineHandler handler,
             RedisPipelineConsumerSettings settings,
             IDistributedLockFactory lockFactory,
-            IDatabase database)
+            IDatabase database,
+            IConnectionMultiplexer multiplexer)
         {
             this.logger = logger;
             this.handler = handler;
             this.lockFactory = lockFactory;
             this.database = database;
             this.settings = settings;
+            this.multiplexer = multiplexer;
         }
 
+        
         /// <summary>
         /// Executes the consumer processing, continually polling for and handling new messages.
         /// </summary>
-        public async Task ExecuteAsync(CancellationToken cancellationToken)
+        public virtual async Task ExecuteAsync(CancellationToken cancellationToken)
         {
-            logger.LogDebug("RedisPipelineConsumer '{resource}' has been executed.", settings.Resource);
+            logger.LogDebug("RedisPipelineConsumer '{resource}' started.", settings.Resource);
 
-            while (!cancellationToken.IsCancellationRequested)
+            var subscriber = this.database.Multiplexer.GetSubscriber();
+            var channel = RedisChannel.Literal(RedisPipelineExtensions.SignalChannelKey(settings.Resource));
+            var signal = new SemaphoreSlim(0, 1);
+
+            await subscriber.SubscribeAsync(channel, (redisChannel, redisValue) =>
             {
-                bool success = false;
-                Exception error = null;
+                if (signal.CurrentCount == 0)
+                    signal.Release();
+            });
 
-                try
-                {
-                    success = await PollAsync(cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    error = ex;
-                    logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
-                }
+            try
+            {
+                // Executa uma vez imediatamente — pode haver item reservado de execução anterior
+                signal.Release();
 
-                if (this.handler != null)
+
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    await this.handler.StatusAsync(new RedisConsumerStatus
+
+                    // Aguarda sinal ou timeout de 30s (para recheck periódico)
+                    await signal.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+
+                    bool success = false;
+                    Exception error = null;
+
+                    try
                     {
-                        Resource = settings.Resource,
-                        IsAlive = true,
-                        ProcessedMessage = success,
-                        LastExecutionUtc = DateTime.UtcNow,
-                        LastError = error
-                    }, cancellationToken);
+                        success = await PollAsync(cancellationToken);
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (RedisTimeoutException ex)
+                    {
+                        error = ex;
+                        logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
+                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        error = ex;
+                        logger.LogError(ex, "Error while polling RedisPipelineConsumer '{resource}'.", settings.Resource);
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    }
+
+
+                    if (this.handler != null)
+                    {
+                        await this.handler.StatusAsync(new RedisConsumerStatus
+                        {
+                            Resource = settings.Resource,
+                            IsAlive = true,
+                            ProcessedMessage = success,
+                            LastExecutionUtc = DateTime.UtcNow,
+                            LastError = error
+                        }, cancellationToken);
+                    }
+
+                    // Ainda tem itens na fila — continua sem esperar sinal do produtor
+                    if (success)
+                        signal.Release();
+
                 }
-                if (!success)
-                {
-                    await Task.Delay(settings.PullInterval, cancellationToken);
-                }
+            }
+            finally
+            {
+                await subscriber.UnsubscribeAsync(channel);
             }
         }
 
@@ -110,6 +149,11 @@ namespace RedisMessagePipeline.Consumer
                 Timestamp = DateTime.UtcNow.Ticks
             };
             await database.StringSetAsync(RedisPipelineExtensions.FailureKey(settings.Resource), JsonSerializer.Serialize(failure));
+        }
+
+        public void Dispose()
+        {
+            multiplexer?.Dispose();
         }
     }
 }

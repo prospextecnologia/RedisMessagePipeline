@@ -1,8 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RedisMessagePipeline.Admin;
 using RedisMessagePipeline.Consumer;
 using RedLockNet;
+using RedLockNet.SERedis.Configuration;
+using RedLockNet.SERedis;
 using StackExchange.Redis;
+using System.Collections.Generic;
 
 namespace RedisMessagePipeline.Factory
 {
@@ -25,14 +29,21 @@ namespace RedisMessagePipeline.Factory
         /// <summary>
         /// Creates a RedisPipelineConsumer with specific handler and settings.
         /// </summary>
-        public IRedisPipelineConsumer CreateConsumer(IRedisPipelineHandler handler, RedisPipelineConsumerSettings settings)
+        public IRedisPipelineConsumer CreateConsumer(IRedisPipelineHandler handler, RedisPipelineConsumerSettings settings, string stringConnection)
         {
+            var dedicatedMultiplexer = ConnectionMultiplexer.Connect(stringConnection);
+            var dedicatedDatabase = dedicatedMultiplexer.GetDatabase();
+            var dedicatedLockFactory = RedLockFactory.Create(new List<RedLockMultiplexer>
+            {
+                new RedLockMultiplexer(dedicatedMultiplexer)
+            });
+
             switch (settings.Type)
             {
                 case EnPipelineType.QUEUE_SCHEDULE:
-                    return new RedisPipelineScheduleConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
+                    return new RedisPipelineScheduleConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, dedicatedLockFactory, dedicatedDatabase, dedicatedMultiplexer);
                 default:
-                    return new RedisPipelineQueueConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, lockFactory, database);
+                    return new RedisPipelineQueueConsumer(loggerFactory.CreateLogger<RedisPipelineQueueConsumer>(), handler, settings, dedicatedLockFactory, dedicatedDatabase, dedicatedMultiplexer);
             }
         }
 
