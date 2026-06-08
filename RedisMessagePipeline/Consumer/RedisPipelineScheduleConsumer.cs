@@ -49,7 +49,7 @@ namespace RedisMessagePipeline.Consumer
                 {
                     TimeSpan delay = await GetDelayUntilNextAsync();
 
-                    if (delay > TimeSpan.Zero)
+                    if (delay.Equals(Timeout.InfiniteTimeSpan) || delay > TimeSpan.Zero)
                     {
                         await signal.WaitAsync(delay, cancellationToken);
                         continue;
